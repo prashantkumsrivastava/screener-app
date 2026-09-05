@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { 
   createChart, 
   CandlestickSeries, 
@@ -7,13 +7,15 @@ import {
   CrosshairMode 
 } from 'lightweight-charts';
 import { useAppStore } from '../store/useAppStore';
+import { computeWeeklyIndicators } from '../utils/weeklyData';
 import { 
   Star, 
   RefreshCw, 
   TrendingUp, 
   TrendingDown, 
   Layers, 
-  Sparkles 
+  Sparkles,
+  AlertCircle 
 } from 'lucide-react';
 
 export function ChartPanel() {
@@ -36,16 +38,86 @@ export function ChartPanel() {
   } = useAppStore();
 
   const [activeRange, setActiveRange] = useState('1Y');
+  const [timeframe, setTimeframe] = useState('D'); // 'D' = Daily, 'W' = Weekly
   const [legendData, setLegendData] = useState(null);
 
   const stockMeta = stocks.find(s => s.symbol === selectedStock) || {};
   const isFav = favorites.includes(selectedStock);
 
-  // Initialize and update Lightweight Chart
+  // Compute dynamic weekly candles and weekly indicators on-the-fly (NEVER stored in DB or store)
+  const weeklyData = useMemo(() => {
+    if (timeframe === 'W' && selectedStockCandles && selectedStockCandles.length > 0) {
+      return computeWeeklyIndicators(selectedStockCandles);
+    }
+    return null;
+  }, [timeframe, selectedStockCandles]);
+
+  // Determine active candles and indicator series based on selected timeframe ('D' vs 'W')
+  const activeCandles = useMemo(() => {
+    if (timeframe === 'W') {
+      return weeklyData?.weeklyCandles || [];
+    }
+    return selectedStockCandles || [];
+  }, [timeframe, weeklyData, selectedStockCandles]);
+
+  const activeIndicators = useMemo(() => {
+    if (timeframe === 'W') {
+      return {
+        ema20Series: weeklyData?.ema20Series || [],
+        ema50Series: weeklyData?.ema50Series || [],
+        ema100Series: weeklyData?.ema100Series || [],
+        ema200Series: weeklyData?.ema200Series || [],
+      };
+    }
+    return selectedStockIndicators || {};
+  }, [timeframe, weeklyData, selectedStockIndicators]);
+
+  // Compute metrics for header and overlays based on active timeframe
+  const ind = useMemo(() => {
+    if (timeframe === 'D') return selectedStockIndicators || {};
+
+    const wCandles = weeklyData?.weeklyCandles || [];
+    if (wCandles.length === 0) return {};
+
+    const last = wCandles[wCandles.length - 1];
+    const prev = wCandles[wCandles.length - 2];
+    const price = last ? last.close : 0;
+    const change1W = prev ? Number((price - prev.close).toFixed(2)) : 0;
+    const changePercent1W = prev && prev.close ? Number(((change1W / prev.close) * 100).toFixed(2)) : 0;
+
+    const ema20Val = weeklyData?.ema20Series[weeklyData.ema20Series.length - 1]?.value;
+    const ema50Val = weeklyData?.ema50Series[weeklyData.ema50Series.length - 1]?.value;
+    const ema100Val = weeklyData?.ema100Series[weeklyData.ema100Series.length - 1]?.value;
+    const ema200Val = weeklyData?.ema200Series[weeklyData.ema200Series.length - 1]?.value;
+
+    const isGoldenStack = Boolean(ema20Val && ema50Val && ema100Val && ema200Val && ema20Val > ema50Val && ema50Val > ema100Val && ema100Val > ema200Val);
+    const isDeathStack = Boolean(ema20Val && ema50Val && ema100Val && ema200Val && ema20Val < ema50Val && ema50Val < ema100Val && ema100Val < ema200Val);
+
+    return {
+      price,
+      change1D: change1W,
+      changePercent1D: changePercent1W,
+      ema20: ema20Val,
+      ema50: ema50Val,
+      ema100: ema100Val,
+      ema200: ema200Val,
+      isGoldenStack,
+      isDeathStack,
+      compositeScore: (selectedStockIndicators?.compositeScore) || 0,
+      high52W: selectedStockIndicators?.high52W,
+      low52W: selectedStockIndicators?.low52W,
+      distFrom52WHigh: selectedStockIndicators?.distFrom52WHigh,
+      priceVsEma20: ema20Val ? Number((((price - ema20Val) / ema20Val) * 100).toFixed(2)) : 0,
+      ema20VsEma50: (ema20Val && ema50Val) ? Number((((ema20Val - ema50Val) / ema50Val) * 100).toFixed(2)) : 0,
+      rsi: selectedStockIndicators?.rsi,
+      volumeSurge: selectedStockIndicators?.volumeSurge
+    };
+  }, [timeframe, selectedStockIndicators, weeklyData]);
+
+  // Initialize Lightweight Chart
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
-    // Clean up previous instance if any
     if (chartInstanceRef.current) {
       chartInstanceRef.current.remove();
       chartInstanceRef.current = null;
@@ -61,7 +133,6 @@ export function ChartPanel() {
     const gridColor = isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.05)';
     const borderColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)';
 
-    // Create TradingView Lightweight Chart
     const chart = createChart(container, {
       width,
       height,
@@ -104,7 +175,6 @@ export function ChartPanel() {
 
     chartInstanceRef.current = chart;
 
-    // 1. Add Candlestick Series
     const candleSeries = chart.addSeries(CandlestickSeries, {
       upColor: '#00e676',
       downColor: '#ff3366',
@@ -114,10 +184,9 @@ export function ChartPanel() {
     });
     seriesRefs.current.candle = candleSeries;
 
-    // 2. Add Volume Series (at bottom 20% margin)
     const volumeSeries = chart.addSeries(HistogramSeries, {
       priceFormat: { type: 'volume' },
-      priceScaleId: '', // overlay
+      priceScaleId: '',
     });
     volumeSeries.priceScale().applyOptions({
       scaleMargins: {
@@ -127,7 +196,6 @@ export function ChartPanel() {
     });
     seriesRefs.current.volume = volumeSeries;
 
-    // 3. Add EMA Overlay Series
     const ema20Series = chart.addSeries(LineSeries, {
       color: '#00f2fe',
       lineWidth: 2,
@@ -160,7 +228,6 @@ export function ChartPanel() {
     });
     seriesRefs.current.ema200 = ema200Series;
 
-    // Crosshair hover listener for detailed Legend
     chart.subscribeCrosshairMove((param) => {
       if (!param || !param.time || !param.seriesData) {
         setLegendData(null);
@@ -190,7 +257,6 @@ export function ChartPanel() {
       }
     });
 
-    // Handle Window Resize
     const handleResize = () => {
       if (chartContainerRef.current && chartInstanceRef.current) {
         chartInstanceRef.current.applyOptions({
@@ -233,21 +299,27 @@ export function ChartPanel() {
     });
   }, [theme]);
 
-  // Update Data and Series when stock or indicators change
+  // Update Data and Series when stock, candles, timeframe, or indicators change
   useEffect(() => {
-    if (!chartInstanceRef.current || !selectedStockCandles || selectedStockCandles.length === 0) {
+    if (!chartInstanceRef.current || !activeCandles || activeCandles.length === 0) {
       return;
     }
 
     const { candle, volume, ema20, ema50, ema100, ema200 } = seriesRefs.current;
 
-    // Filter candles based on active range
-    let filteredCandles = [...selectedStockCandles];
-    if (activeRange === '1M') filteredCandles = selectedStockCandles.slice(-22);
-    else if (activeRange === '3M') filteredCandles = selectedStockCandles.slice(-66);
-    else if (activeRange === '6M') filteredCandles = selectedStockCandles.slice(-132);
-    else if (activeRange === '1Y') filteredCandles = selectedStockCandles.slice(-252);
-    else if (activeRange === '2Y') filteredCandles = selectedStockCandles.slice(-504);
+    // Filter candles based on active range and selected timeframe
+    let filteredCandles = [...activeCandles];
+    if (timeframe === 'W') {
+      if (activeRange === '1M') filteredCandles = activeCandles.slice(-4);
+      else if (activeRange === '3M') filteredCandles = activeCandles.slice(-13);
+      else if (activeRange === '6M') filteredCandles = activeCandles.slice(-26);
+      else if (activeRange === '1Y') filteredCandles = activeCandles.slice(-52);
+    } else {
+      if (activeRange === '1M') filteredCandles = activeCandles.slice(-22);
+      else if (activeRange === '3M') filteredCandles = activeCandles.slice(-66);
+      else if (activeRange === '6M') filteredCandles = activeCandles.slice(-132);
+      else if (activeRange === '1Y') filteredCandles = activeCandles.slice(-252);
+    }
 
     if (candle) {
       candle.setData(filteredCandles);
@@ -266,39 +338,39 @@ export function ChartPanel() {
       }
     }
 
-    // Filter indicator series based on filtered timeframe
+    // Filter indicator series based on filtered timeframe dates
     const validDates = new Set(filteredCandles.map(c => c.time));
 
-    if (ema20 && selectedStockIndicators?.ema20Series) {
+    if (ema20 && activeIndicators?.ema20Series) {
       ema20.setData(chartToggles.ema20 
-        ? selectedStockIndicators.ema20Series.filter(d => validDates.has(d.time)) 
+        ? activeIndicators.ema20Series.filter(d => validDates.has(d.time)) 
         : []
       );
     }
 
-    if (ema50 && selectedStockIndicators?.ema50Series) {
+    if (ema50 && activeIndicators?.ema50Series) {
       ema50.setData(chartToggles.ema50 
-        ? selectedStockIndicators.ema50Series.filter(d => validDates.has(d.time)) 
+        ? activeIndicators.ema50Series.filter(d => validDates.has(d.time)) 
         : []
       );
     }
 
-    if (ema100 && selectedStockIndicators?.ema100Series) {
+    if (ema100 && activeIndicators?.ema100Series) {
       ema100.setData(chartToggles.ema100 
-        ? selectedStockIndicators.ema100Series.filter(d => validDates.has(d.time)) 
+        ? activeIndicators.ema100Series.filter(d => validDates.has(d.time)) 
         : []
       );
     }
 
-    if (ema200 && selectedStockIndicators?.ema200Series) {
+    if (ema200 && activeIndicators?.ema200Series) {
       ema200.setData(chartToggles.ema200 
-        ? selectedStockIndicators.ema200Series.filter(d => validDates.has(d.time)) 
+        ? activeIndicators.ema200Series.filter(d => validDates.has(d.time)) 
         : []
       );
     }
 
     chartInstanceRef.current.timeScale().fitContent();
-  }, [selectedStockCandles, selectedStockIndicators, chartToggles, activeRange]);
+  }, [activeCandles, activeIndicators, chartToggles, activeRange, timeframe]);
 
   if (!selectedStock) {
     return (
@@ -309,8 +381,6 @@ export function ChartPanel() {
       </div>
     );
   }
-
-  const ind = selectedStockIndicators || {};
 
   return (
     <div className="chart-panel-card">
@@ -334,16 +404,17 @@ export function ChartPanel() {
               <h2 className="chart-symbol-code">{selectedStock}</h2>
               <span className="chart-exchange-tag">NSE</span>
               <span className="chart-sector-tag">{stockMeta.industry || 'Nifty 500'}</span>
-              <span className={`source-badge source-${selectedStockSource}`}>
-                {selectedStockSource === 'live' ? '● Live (2Y)' : 
+              <span className={`source-badge source-${timeframe === 'W' ? 'live' : selectedStockSource}`}>
+                {timeframe === 'W' ? '● Weekly (On-the-Fly)' :
+                 selectedStockSource === 'live' ? '● Live Market' : 
                  selectedStockSource === 'live-delta' ? '● Live Delta' :
                  selectedStockSource === 'live-proxy' ? '● Live CORS' : 
                  selectedStockSource === 'db-daily' ? '● DB Daily' :
                  selectedStockSource === 'cache' || selectedStockSource === 'cache-offline' ? '● Persistent DB' : '● Market Data'}
               </span>
-              {selectedStockCandles && selectedStockCandles.length > 0 && (
+              {activeCandles && activeCandles.length > 0 && (
                 <span className="source-badge" style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)' }}>
-                  {selectedStockCandles.length} bars ({selectedStockCandles.length >= 400 ? '2Y' : `${(selectedStockCandles.length / 252).toFixed(1)}Y`})
+                  {activeCandles.length} {timeframe === 'W' ? 'weekly' : 'daily'} bars
                 </span>
               )}
             </div>
@@ -351,7 +422,7 @@ export function ChartPanel() {
           </div>
         </div>
 
-        {/* Current Price & 1D Change */}
+        {/* Current Price & Change */}
         <div className="chart-quote-block">
           <div className="quote-price-big">
             ₹{ind.price ? ind.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '---'}
@@ -361,7 +432,7 @@ export function ChartPanel() {
             <span>{ind.changePercent1D >= 0 ? '+' : ''}{ind.changePercent1D}%</span>
             <span>({ind.change1D >= 0 ? '+' : ''}{ind.change1D})</span>
           </div>
-          {ind.slopeScore !== undefined && (
+          {timeframe === 'D' && ind.slopeScore !== undefined && (
             <div 
               className={`quote-change-badge ${ind.slopeScore > 0 ? 'positive' : ind.slopeScore < 0 ? 'negative' : ''}`}
               title={`Trend Velocity: 20EMA 5D: ${ind.slopeEma20}% | 50EMA 10D: ${ind.slopeEma50}%`}
@@ -372,9 +443,9 @@ export function ChartPanel() {
           )}
         </div>
 
-        {/* Timeframe Range Buttons */}
+        {/* Timeframe Range Buttons (Only 1M, 3M, 6M, 1Y, ALL) */}
         <div className="chart-timeframe-selector">
-          {['1M', '3M', '6M', '1Y', '2Y', 'ALL'].map((tf) => (
+          {['1M', '3M', '6M', '1Y', 'ALL'].map((tf) => (
             <button
               key={tf}
               className={`btn-timeframe ${activeRange === tf ? 'active' : ''}`}
@@ -393,7 +464,7 @@ export function ChartPanel() {
         </div>
       </div>
 
-      {/* EMA Toggle Pills Strip */}
+      {/* EMA Toggle Pills Strip + Candle D/W Selector */}
       <div className="chart-indicator-toggles-bar">
         <div className="indicator-toggle-group">
           <span className="toggle-group-label">Overlays:</span>
@@ -441,6 +512,24 @@ export function ChartPanel() {
             <span className="indicator-dot dot-vol" />
             <span>Volume</span>
           </button>
+
+          {/* D / W Timeframe Selector Pill */}
+          <div className="candle-tf-selector" title="Switch Candle Timeframe Frequency">
+            <button
+              className={`btn-tf-toggle ${timeframe === 'D' ? 'active' : ''}`}
+              onClick={() => setTimeframe('D')}
+              title="Daily Candles (DB)"
+            >
+              D
+            </button>
+            <button
+              className={`btn-tf-toggle ${timeframe === 'W' ? 'active' : ''}`}
+              onClick={() => setTimeframe('W')}
+              title="Weekly Candles (Dynamic On-the-Fly)"
+            >
+              W
+            </button>
+          </div>
         </div>
 
         {/* Alignment & Divergence Status Tag */}
@@ -455,16 +544,24 @@ export function ChartPanel() {
               ✕ Death Stack (Strong Bearish)
             </span>
           )}
-          {ind.isPullbackEMA20 && (
+          {timeframe === 'D' && ind.isPullbackEMA20 && (
             <span className="pill-alignment pullback">
               ⚡ Uptrend Pullback to 20 EMA
             </span>
           )}
           <span className="pill-composite-score">
-            Divergence Score: <strong>{ind.compositeScore > 0 ? `+${ind.compositeScore}` : ind.compositeScore}</strong>
+            {timeframe === 'W' ? 'Weekly' : 'Daily'} Divergence: <strong>{ind.compositeScore > 0 ? `+${ind.compositeScore}` : ind.compositeScore}</strong>
           </span>
         </div>
       </div>
+
+      {/* Warning display when weekly bars are insufficient for long EMAs */}
+      {timeframe === 'W' && weeklyData?.warnings?.length > 0 && (
+        <div className="chart-warning-banner">
+          <AlertCircle size={15} />
+          <span>Note: {weeklyData.warnings.join(' ')} (Strict mode: No simulated or dummy data generated).</span>
+        </div>
+      )}
 
       {/* Dynamic Hover Crosshair Legend */}
       <div className="chart-hover-legend">
@@ -482,13 +579,16 @@ export function ChartPanel() {
             {chartToggles.ema50 && legendData.ema50 && (
               <span className="text-amber">EMA50: <strong>₹{legendData.ema50}</strong></span>
             )}
+            {chartToggles.ema100 && legendData.ema100 && (
+              <span className="text-rose" style={{ color: '#ff7043' }}>EMA100: <strong>₹{legendData.ema100}</strong></span>
+            )}
             {chartToggles.ema200 && legendData.ema200 && (
               <span className="text-magenta">EMA200: <strong>₹{legendData.ema200}</strong></span>
             )}
           </div>
         ) : (
           <div className="legend-items-row text-dim">
-            <span>Hover cursor over candles to inspect precise OHLC & EMA metrics</span>
+            <span>Hover cursor over candles to inspect precise OHLC & EMA metrics ({timeframe === 'W' ? 'Weekly' : 'Daily'})</span>
           </div>
         )}
       </div>
@@ -500,39 +600,33 @@ export function ChartPanel() {
       <div className="chart-metrics-footer">
         <div className="footer-metric-item">
           <span className="metric-label">52W High</span>
-          <span className="metric-val">₹{ind.high52W}</span>
-          <span className="metric-sub">{ind.distFrom52WHigh}% from ATH</span>
+          <span className="metric-val">₹{ind.high52W || '---'}</span>
+          {ind.distFrom52WHigh !== undefined && <span className="metric-sub">{ind.distFrom52WHigh}% from ATH</span>}
         </div>
         <div className="footer-metric-item">
           <span className="metric-label">52W Low</span>
-          <span className="metric-val">₹{ind.low52W}</span>
+          <span className="metric-val">₹{ind.low52W || '---'}</span>
         </div>
         <div className="footer-metric-item">
-          <span className="metric-label">Price vs EMA20</span>
+          <span className="metric-label">Price vs {timeframe === 'W' ? 'Weekly ' : ''}EMA20</span>
           <span className={`metric-val ${ind.priceVsEma20 >= 0 ? 'text-emerald' : 'text-rose'}`}>
             {ind.priceVsEma20 >= 0 ? '+' : ''}{ind.priceVsEma20}%
           </span>
         </div>
         <div className="footer-metric-item">
-          <span className="metric-label">EMA20 vs EMA50</span>
+          <span className="metric-label">{timeframe === 'W' ? 'Weekly ' : ''}EMA20 vs EMA50</span>
           <span className={`metric-val ${ind.ema20VsEma50 >= 0 ? 'text-emerald' : 'text-rose'}`}>
             {ind.ema20VsEma50 >= 0 ? '+' : ''}{ind.ema20VsEma50}%
           </span>
         </div>
         <div className="footer-metric-item">
-          <span className="metric-label">5-Day EMA20 Slope</span>
-          <span className={`metric-val ${ind.slopeEma20 >= 0 ? 'text-emerald' : 'text-rose'}`}>
-            {ind.slopeEma20 >= 0 ? '+' : ''}{ind.slopeEma20}%
-          </span>
-        </div>
-        <div className="footer-metric-item">
           <span className="metric-label">RSI (14)</span>
-          <span className="metric-val">{ind.rsi}</span>
+          <span className="metric-val">{ind.rsi || '---'}</span>
         </div>
         <div className="footer-metric-item">
           <span className="metric-label">Volume Surge</span>
-          <span className="metric-val">{ind.volumeSurge}x</span>
-          <span className="metric-sub">20-day SMA</span>
+          <span className="metric-val">{ind.volumeSurge || '1.0'}x</span>
+          <span className="metric-sub">20-period SMA</span>
         </div>
       </div>
     </div>

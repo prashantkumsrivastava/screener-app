@@ -132,7 +132,7 @@
 /* Center Search Bar */
 .navbar-center {
   flex: 1;
-  max-width: 460px;
+  max-width: 680px;
   position: relative;
 }
 
@@ -1627,6 +1627,56 @@
   font-family: var(--font-mono);
   font-size: 0.72rem;
   color: var(--text-secondary);
+}
+
+/* Candle Timeframe D / W Toggle Selector */
+.candle-tf-selector {
+  display: flex;
+  align-items: center;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+  gap: 2px;
+  margin-left: 0.25rem;
+}
+
+.btn-tf-toggle {
+  padding: 0.2rem 0.6rem;
+  font-size: 0.8rem;
+  font-weight: 800;
+  border-radius: 4px;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  line-height: 1.2;
+}
+
+.btn-tf-toggle:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.btn-tf-toggle.active {
+  background: var(--neon-emerald);
+  color: #070a0f;
+  font-weight: 900;
+  box-shadow: 0 0 10px rgba(0, 230, 118, 0.4);
+}
+
+/* Insufficient Data Warning Banner */
+.chart-warning-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(255, 179, 0, 0.12);
+  border: 1px solid rgba(255, 179, 0, 0.35);
+  color: #ffca28;
+  padding: 0.45rem 1.25rem;
+  font-size: 0.78rem;
+  font-weight: 600;
 }
 
 .chart-alignment-status {

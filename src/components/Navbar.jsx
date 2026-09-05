@@ -63,7 +63,7 @@ export function Navbar() {
 
   return (
     <header className="navbar-container">
-      {/* Brand & Market Indices */}
+      {/* Brand */}
       <div className="navbar-left">
         <div className="navbar-brand" onClick={() => setActiveTab('screener')}>
           <div className="brand-icon-wrapper">
@@ -72,25 +72,6 @@ export function Navbar() {
           <div className="brand-text">
             <span className="brand-title">MY STOCK <span className="highlight-text">SCREENER</span></span>
             <span className="brand-subtitle">NIFTY 500 • EMA DIVERGENCE TERMINAL</span>
-          </div>
-        </div>
-
-        {/* Live Index Ticker Pills */}
-        <div className="market-ticker-pills">
-          <div className="ticker-pill">
-            <span className="ticker-label">NIFTY 50</span>
-            <span className="ticker-val">24,852.40</span>
-            <span className="ticker-chg positive">+0.48%</span>
-          </div>
-          <div className="ticker-pill">
-            <span className="ticker-label">BANK NIFTY</span>
-            <span className="ticker-val">53,420.15</span>
-            <span className="ticker-chg positive">+0.62%</span>
-          </div>
-          <div className="ticker-pill">
-            <span className="ticker-label">NIFTY IT</span>
-            <span className="ticker-val">37,680.90</span>
-            <span className="ticker-chg negative">-0.24%</span>
           </div>
         </div>
       </div>
