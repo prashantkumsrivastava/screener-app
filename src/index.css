@@ -1,0 +1,171 @@
+/* ==========================================================================
+   NEXUS TERMINAL - GLOBAL FINTECH DESIGN SYSTEM
+   ========================================================================== */
+
+:root {
+  --bg-core: #070a0f;
+  --bg-surface: #0c111c;
+  --bg-card: #111726;
+  --bg-card-hover: #162035;
+  --bg-elevated: #1a253d;
+
+  --border-subtle: rgba(255, 255, 255, 0.07);
+  --border-medium: rgba(255, 255, 255, 0.12);
+  --border-accent: rgba(0, 242, 254, 0.35);
+
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --text-dim: #475569;
+
+  --neon-cyan: #00f2fe;
+  --neon-emerald: #00e676;
+  --neon-rose: #ff3366;
+  --neon-amber: #ffb300;
+  --neon-purple: #a855f7;
+  --neon-magenta: #d500f9;
+  --neon-blue: #38bdf8;
+
+  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+
+  --shadow-card: 0 4px 20px -2px rgba(0, 0, 0, 0.5);
+  --shadow-glow-cyan: 0 0 15px rgba(0, 242, 254, 0.25);
+  --shadow-glow-emerald: 0 0 15px rgba(0, 230, 118, 0.25);
+  --shadow-glow-rose: 0 0 15px rgba(255, 51, 102, 0.25);
+}
+
+/* Light Theme Variables */
+[data-theme="light"] {
+  --bg-core: #f1f5f9;
+  --bg-surface: #ffffff;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f8fafc;
+  --bg-elevated: #e2e8f0;
+
+  --border-subtle: rgba(0, 0, 0, 0.08);
+  --border-medium: rgba(0, 0, 0, 0.15);
+  --border-accent: rgba(2, 132, 199, 0.4);
+
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+  --text-dim: #94a3b8;
+
+  --neon-cyan: #0284c7;
+  --neon-emerald: #16a34a;
+  --neon-rose: #e11d48;
+  --neon-amber: #d97706;
+  --neon-purple: #7c3aed;
+  --neon-magenta: #c026d3;
+  --neon-blue: #2563eb;
+
+  --shadow-card: 0 4px 15px -1px rgba(0, 0, 0, 0.06), 0 2px 6px -1px rgba(0, 0, 0, 0.04);
+  --shadow-glow-cyan: 0 0 10px rgba(2, 132, 199, 0.2);
+  --shadow-glow-emerald: 0 0 10px rgba(22, 163, 74, 0.2);
+  --shadow-glow-rose: 0 0 10px rgba(225, 29, 72, 0.2);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  width: 100%;
+  min-height: 100%;
+  background-color: var(--bg-core);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-surface);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--bg-elevated);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Base Utility Classes */
+.text-cyan {
+  color: var(--neon-cyan) !important;
+}
+
+.text-emerald {
+  color: var(--neon-emerald) !important;
+}
+
+.text-rose {
+  color: var(--neon-rose) !important;
+}
+
+.text-amber {
+  color: var(--neon-amber) !important;
+}
+
+.text-purple {
+  color: var(--neon-purple) !important;
+}
+
+.text-magenta {
+  color: var(--neon-magenta) !important;
+}
+
+.text-dim {
+  color: var(--text-muted) !important;
+}
+
+/* Buttons & Interactive Elements */
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+  font-family: inherit;
+  transition: all 0.15s ease-in-out;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--neon-cyan);
+  outline-offset: 1px;
+}
+
+/* Table Elements */
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
