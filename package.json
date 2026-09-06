@@ -8,10 +8,10 @@
     "dev": "vite",
     "server": "node server/index.js",
     "build": "vite build",
+    "postbuild": "gh-pages -d dist",
     "lint": "eslint .",
     "preview": "vite preview",
-    "predeploy": "npm run build",
-    "deploy": "gh-pages -d dist"
+    "deploy": "npm run build"
   },
   "dependencies": {
     "autoprefixer": "^10.5.4",
