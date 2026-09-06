@@ -18,6 +18,24 @@ import {
   AlertCircle 
 } from 'lucide-react';
 
+function sanitizeSeriesData(data) {
+  if (!Array.isArray(data) || data.length === 0) return [];
+  const map = new Map();
+  for (const item of data) {
+    if (!item) continue;
+    let timeStr;
+    if (typeof item.time === 'string') {
+      timeStr = item.time.includes('T') ? item.time.split('T')[0] : item.time.trim();
+    } else if (typeof item.time === 'number') {
+      timeStr = new Date(item.time * 1000).toISOString().split('T')[0];
+    } else {
+      continue;
+    }
+    map.set(timeStr, { ...item, time: timeStr });
+  }
+  return Array.from(map.values()).sort((a, b) => a.time.localeCompare(b.time));
+}
+
 export function ChartPanel() {
   const chartContainerRef = useRef(null);
   const chartInstanceRef = useRef(null);
@@ -54,22 +72,25 @@ export function ChartPanel() {
 
   // Determine active candles and indicator series based on selected timeframe ('D' vs 'W')
   const activeCandles = useMemo(() => {
-    if (timeframe === 'W') {
-      return weeklyData?.weeklyCandles || [];
-    }
-    return selectedStockCandles || [];
+    const raw = timeframe === 'W' ? (weeklyData?.weeklyCandles || []) : (selectedStockCandles || []);
+    return sanitizeSeriesData(raw);
   }, [timeframe, weeklyData, selectedStockCandles]);
 
   const activeIndicators = useMemo(() => {
     if (timeframe === 'W') {
       return {
-        ema20Series: weeklyData?.ema20Series || [],
-        ema50Series: weeklyData?.ema50Series || [],
-        ema100Series: weeklyData?.ema100Series || [],
-        ema200Series: weeklyData?.ema200Series || [],
+        ema20Series: sanitizeSeriesData(weeklyData?.ema20Series || []),
+        ema50Series: sanitizeSeriesData(weeklyData?.ema50Series || []),
+        ema100Series: sanitizeSeriesData(weeklyData?.ema100Series || []),
+        ema200Series: sanitizeSeriesData(weeklyData?.ema200Series || []),
       };
     }
-    return selectedStockIndicators || {};
+    return {
+      ema20Series: sanitizeSeriesData(selectedStockIndicators?.ema20Series || []),
+      ema50Series: sanitizeSeriesData(selectedStockIndicators?.ema50Series || []),
+      ema100Series: sanitizeSeriesData(selectedStockIndicators?.ema100Series || []),
+      ema200Series: sanitizeSeriesData(selectedStockIndicators?.ema200Series || []),
+    };
   }, [timeframe, weeklyData, selectedStockIndicators]);
 
   // Compute metrics for header and overlays based on active timeframe

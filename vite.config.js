@@ -1,10 +1,29 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
+import { handleJsonDbApi } from './server/jsonDb.js'
+
+function jsonDbPlugin() {
+  return {
+    name: 'vite-plugin-jsondb',
+    configureServer(server) {
+      server.middlewares.use(async (req, res, next) => {
+        if (req.url && req.url.includes('/api/db')) {
+          const handled = await handleJsonDbApi(req, res);
+          if (!handled && !res.headersSent) {
+            next();
+          }
+        } else {
+          next();
+        }
+      });
+    }
+  };
+}
 
 // https://vite.dev/config/
 export default defineConfig({
   base: '/screener-app/', // -- github pages deploy changes
-  plugins: [react()],
+  plugins: [react(), jsonDbPlugin()],
   server: {
     port: 3000,
     proxy: {
@@ -29,4 +48,5 @@ export default defineConfig({
     }
   }
 })
+
 

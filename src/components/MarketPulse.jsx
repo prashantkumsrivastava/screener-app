@@ -1,10 +1,8 @@
-import React from 'react';
 import { useAppStore } from '../store/useAppStore';
 import { 
   TrendingUp, 
   TrendingDown, 
   Flame, 
-  ShieldCheck, 
   Database,
   Activity
 } from 'lucide-react';
@@ -15,12 +13,10 @@ export function MarketPulse() {
   const scannedStocks = stocks.filter(s => s.price > 0);
   const goldenStackCount = stocks.filter(s => s.isGoldenStack).length;
   const deathStackCount = stocks.filter(s => s.isDeathStack).length;
-  const goldenCrossCount = stocks.filter(s => s.isGoldenCross).length;
   const pullbackCount = stocks.filter(s => s.isPullbackEMA20 || s.isPullbackEMA50).length;
 
   // Top momentum gainer / top score
   const topScorer = [...scannedStocks].sort((a, b) => b.compositeScore - a.compositeScore)[0];
-  const topGainer = [...scannedStocks].sort((a, b) => b.changePercent1D - a.changePercent1D)[0];
 
   const aboveEma20Count = stocks.filter(s => s.priceVsEma20 > 0).length;
   const totalScanned = scannedStocks.length || 1;
@@ -142,7 +138,7 @@ export function MarketPulse() {
           </div>
         </div>
         <div className="pulse-footer-tag purple">
-          IndexedDB: {dbStats.priceCount.toLocaleString()} candles (~{dbStats.estimatedSizeMB} MB)
+          LowDB Server: {dbStats.priceCount.toLocaleString()} candles (~{dbStats.estimatedSizeMB} MB)
         </div>
       </div>
     </section>

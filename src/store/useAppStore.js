@@ -6,9 +6,8 @@ import {
   getUniverseCache, 
   saveUniverseCache, 
   getDatabaseStats,
-  clearCache,
-  db
-} from '../db/indexedDB';
+  clearCache
+} from '../db/jsonDbClient';
 import { fetchStockOHLC } from '../utils/fetchOHLC';
 import { computeIndicators } from '../utils/divergence';
 
@@ -90,72 +89,110 @@ export const useAppStore = create((set, get) => ({
   },
 
   initialize: async () => {
-    // Set theme attribute on document root
-    const currentTheme = get().theme;
-    document.documentElement.setAttribute('data-theme', currentTheme);
+    try {
+      // Set theme attribute on document root
+      const currentTheme = get().theme;
+      document.documentElement.setAttribute('data-theme', currentTheme);
 
-    // 1. Load favorites from persistent DB
-    const favs = await getFavorites();
+      // 1. Load favorites from persistent DB
+      let favs = [];
+      try {
+        favs = await getFavorites();
+      } catch (e) {
+        console.warn('Error loading favorites:', e);
+      }
 
-    // 2. Load cached universe from persistent DB across sessions
-    const cachedUniverse = await getUniverseCache();
+      // 2. Load cached universe from persistent DB across sessions
+      let cachedUniverse = [];
+      try {
+        cachedUniverse = await getUniverseCache();
+      } catch (e) {
+        console.warn('Error loading universe cache:', e);
+      }
 
-    let initialStocks;
-    const hasCachedUniverse = cachedUniverse && cachedUniverse.length > 0;
+      let initialStocks;
+      const hasCachedUniverse = cachedUniverse && cachedUniverse.length > 0;
 
-    if (hasCachedUniverse) {
-      initialStocks = cachedUniverse;
-    } else {
-      // Map basic stocks from nifty500
-      initialStocks = NIFTY_500_STOCKS.map(s => ({
-        ...s,
-        price: 0,
-        changePercent1D: 0,
-        compositeScore: 0,
-        rsi: 50,
-        volumeSurge: 1.0,
-        priceVsEma20: 0,
-        ema20VsEma50: 0,
-        ema50VsEma200: 0,
-        slopeEma20: 0,
-        slopeEma50: 0,
-        isGoldenStack: false,
-        isDeathStack: false,
-        isGoldenCross: false,
-        isPullbackEMA20: false,
-        isPullbackEMA50: false,
-        isMacdBullish: false,
-        isNear52WHigh: false,
-        distFrom52WHigh: 0,
-        macd: null,
-        lastScanned: null
-      }));
-    }
+      if (hasCachedUniverse) {
+        initialStocks = cachedUniverse;
+      } else {
+        // Map basic stocks from nifty500
+        initialStocks = NIFTY_500_STOCKS.map(s => ({
+          ...s,
+          price: 0,
+          changePercent1D: 0,
+          compositeScore: 0,
+          rsi: 50,
+          volumeSurge: 1.0,
+          priceVsEma20: 0,
+          ema20VsEma50: 0,
+          ema50VsEma200: 0,
+          slopeEma20: 0,
+          slopeEma50: 0,
+          isGoldenStack: false,
+          isDeathStack: false,
+          isGoldenCross: false,
+          isPullbackEMA20: false,
+          isPullbackEMA50: false,
+          isMacdBullish: false,
+          isNear52WHigh: false,
+          distFrom52WHigh: 0,
+          macd: null,
+          lastScanned: null
+        }));
+      }
 
-    set({
-      stocks: initialStocks,
-      favorites: favs,
-    });
+      const stockMap = new Map();
+      (initialStocks || []).forEach(s => {
+        if (s && s.symbol) stockMap.set(s.symbol, s);
+      });
+      const uniqueStocks = Array.from(stockMap.values());
+      const uniqueFavs = Array.from(new Set((favs || []).filter(Boolean)));
 
-    // Refresh DB stats
-    await get().refreshDbStats();
+      set({
+        stocks: uniqueStocks,
+        favorites: uniqueFavs,
+      });
 
-    // Select default stock (RELIANCE or first stock) without forcing network re-fetch
-    const defaultSymbol = initialStocks.some(s => s.symbol === 'RELIANCE') ? 'RELIANCE' : initialStocks[0]?.symbol;
-    if (defaultSymbol) {
-      get().selectStock(defaultSymbol, false);
-    }
+      // Refresh DB stats
+      try {
+        await get().refreshDbStats();
+      } catch (e) {
+        console.warn('Error refreshing db stats:', e);
+      }
 
-    // Auto-scan top stocks ONLY if universe has NEVER been scanned before
-    if (!hasCachedUniverse) {
-      const popularStocks = [
-        'RELIANCE', 'TCS', 'HDFCBANK', 'INFY', 'ICICIBANK', 
-        'BHARTIARTL', 'ITC', 'SBIN', 'LT', 'BAJFINANCE',
-        'TATAMOTORS', 'SUNPHARMA', 'MARUTI', 'AXISBANK', 'TITAN',
-        'ULTRACEMCO', 'NTPC', 'POWERGRID', 'ONGC', 'TATASTEEL',
-        'ADANIENT', 'ADANIPORTS', 'KOTAKBANK', 'HINDUNILVR', 'WIPRO'
-      ];
-      get().scanBatch(popularStocks, false);
+      // Select default stock (RELIANCE or first stock) without forcing network re-fetch
+      const defaultSymbol = initialStocks.some(s => s.symbol === 'RELIANCE') ? 'RELIANCE' : initialStocks[0]?.symbol;
+      if (defaultSymbol) {
+        try {
+          get().selectStock(defaultSymbol, false);
+        } catch (e) {
+          console.warn('Error selecting default stock:', e);
+        }
+      }
+
+      // Auto-scan top stocks ONLY if universe has NEVER been scanned before
+      if (!hasCachedUniverse) {
+        const popularStocks = [
+          'RELIANCE', 'TCS', 'HDFCBANK', 'INFY', 'ICICIBANK', 
+          'BHARTIARTL', 'ITC', 'SBIN', 'LT', 'BAJFINANCE',
+          'TATAMOTORS', 'SUNPHARMA', 'MARUTI', 'AXISBANK', 'TITAN',
+          'ULTRACEMCO', 'NTPC', 'POWERGRID', 'ONGC', 'TATASTEEL',
+          'ADANIENT', 'ADANIPORTS', 'KOTAKBANK', 'HINDUNILVR', 'WIPRO'
+        ];
+        try {
+          get().scanBatch(popularStocks, false);
+        } catch (e) {
+          console.warn('Error starting auto-scan:', e);
+        }
+      }
+    } catch (err) {
+      console.error('Fatal initialization error:', err);
+      // Emergency fallback so UI is NEVER blank or dead
+      set({
+        stocks: NIFTY_500_STOCKS.map(s => ({ ...s, price: 0, rsi: 50, compositeScore: 0 })),
+        favorites: []
+      });
     }
   },
 
@@ -282,7 +319,7 @@ export const useAppStore = create((set, get) => ({
       // Persist individual updated stock to universe table
       if (updatedStockRecord) {
         try {
-          await db.universe.put(updatedStockRecord);
+          await saveUniverseCache([updatedStockRecord]);
         } catch (e) {
           console.warn('Error saving updated stock to universe DB:', e);
         }

@@ -205,3 +205,93 @@ export function computeIndicators(candles) {
     ema200Series,
   };
 }
+
+/**
+ * Computes timeline indicators for every daily candle in historical series
+ * Returns enriched array of daily candle objects with all indicator properties
+ */
+export function computeTimelineIndicators(candles) {
+  if (!candles || candles.length === 0) return [];
+
+  return candles.map((c, i) => {
+    if (i < 19) {
+      return {
+        time: c.time,
+        open: Number(c.open),
+        high: Number(c.high),
+        low: Number(c.low),
+        close: Number(c.close),
+        volume: Number(c.volume || 0),
+        ema20: null,
+        ema50: null,
+        ema100: null,
+        ema200: null,
+        rsi: null,
+        macd: null,
+        slopeEma20: 0,
+        slopeEma50: 0,
+        slopeScore: 0,
+        slopeAngle: 0,
+        priceVsEma20: 0,
+        ema20VsEma50: 0,
+        ema50VsEma200: 0,
+        priceVsEma200: 0,
+        volumeSMA: 0,
+        volumeSurge: 1.0,
+        isGoldenStack: false,
+        isDeathStack: false,
+        isGoldenCross: false,
+        isPullbackEMA20: false,
+        isPullbackEMA50: false,
+        distFrom52WHigh: 0,
+        compositeScore: 0
+      };
+    }
+
+    const slice = candles.slice(0, i + 1);
+    const ind = computeIndicators(slice);
+    if (!ind) {
+      return {
+        time: c.time,
+        open: Number(c.open),
+        high: Number(c.high),
+        low: Number(c.low),
+        close: Number(c.close),
+        volume: Number(c.volume || 0),
+      };
+    }
+
+    return {
+      time: c.time,
+      open: Number(c.open),
+      high: Number(c.high),
+      low: Number(c.low),
+      close: Number(c.close),
+      volume: Number(c.volume || 0),
+      ema20: ind.ema20,
+      ema50: ind.ema50,
+      ema100: ind.ema100,
+      ema200: ind.ema200,
+      rsi: ind.rsi,
+      macd: ind.macd,
+      slopeEma20: ind.slopeEma20,
+      slopeEma50: ind.slopeEma50,
+      slopeScore: ind.slopeScore,
+      slopeAngle: ind.slopeAngle,
+      priceVsEma20: ind.priceVsEma20,
+      ema20VsEma50: ind.ema20VsEma50,
+      ema50VsEma200: ind.ema50VsEma200,
+      priceVsEma200: ind.priceVsEma200,
+      volumeSMA: ind.volumeSMA,
+      volumeSurge: ind.volumeSurge,
+      isGoldenStack: ind.isGoldenStack,
+      isDeathStack: ind.isDeathStack,
+      isGoldenCross: ind.isGoldenCross,
+      isPullbackEMA20: ind.isPullbackEMA20,
+      isPullbackEMA50: ind.isPullbackEMA50,
+      distFrom52WHigh: ind.distFrom52WHigh,
+      compositeScore: ind.compositeScore
+    };
+  });
+}
+

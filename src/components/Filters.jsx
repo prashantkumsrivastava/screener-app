@@ -1,4 +1,3 @@
-import React from 'react';
 import { useAppStore } from '../store/useAppStore';
 import { NIFTY_INDUSTRIES } from '../data/nifty500';
 import { 
@@ -12,8 +11,7 @@ import {
   Star, 
   Check,
   Activity,
-  Flame,
-  Compass
+  Flame
 } from 'lucide-react';
 
 export function Filters() {

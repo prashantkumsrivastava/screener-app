@@ -1,18 +1,12 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useAppStore } from '../store/useAppStore';
 import {
   Star,
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
-  TrendingUp,
-  TrendingDown,
   LineChart,
-  Activity,
-  Layers,
-  Zap,
-  CheckCircle2,
-  XCircle
+  Layers
 } from 'lucide-react';
 
 export function StockTable() {

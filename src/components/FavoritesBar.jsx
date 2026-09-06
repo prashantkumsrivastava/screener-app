@@ -1,6 +1,5 @@
-import React from 'react';
 import { useAppStore } from '../store/useAppStore';
-import { Star, TrendingUp, TrendingDown, Plus } from 'lucide-react';
+import { Star } from 'lucide-react';
 
 export function FavoritesBar() {
   const { favorites, stocks, selectedStock, selectStock, toggleFavorite } = useAppStore();

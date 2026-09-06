@@ -1,4 +1,4 @@
-import { getCachedCandles, appendCandles, getStockMetadata, getLatestMarketTradingDate } from '../db/indexedDB';
+import { getCachedCandles, appendCandles, getStockMetadata, getLatestMarketTradingDate } from '../db/jsonDbClient';
 
 /**
  * Parses raw Yahoo Finance chart API response into clean, sorted candle objects.
@@ -111,12 +111,7 @@ export async function fetchStockOHLC(symbol, forceRefresh = false) {
       requestRange = '6mo';
     } else if (diffDays <= 370) {
       requestRange = '1y';
-    } else {
-      requestRange = '2y';
     }
-  } else {
-    // Missing history or forceRefresh -> fetch full 2-year history
-    requestRange = '2y';
   }
 
   const yahooTicker = cleanSymbol.endsWith('.NS') ? cleanSymbol : `${cleanSymbol}.NS`;
