@@ -56,7 +56,8 @@ export const useAppStore = create((set, get) => ({
     ema50: true,
     ema100: true,
     ema200: true,
-    volume: true
+    volume: true,
+    divergence: true
   },
 
   // UI Navigation

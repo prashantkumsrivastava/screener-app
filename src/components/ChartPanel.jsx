@@ -4,7 +4,8 @@ import {
   CandlestickSeries, 
   LineSeries, 
   HistogramSeries, 
-  CrosshairMode 
+  CrosshairMode,
+  LineStyle 
 } from 'lightweight-charts';
 import { useAppStore } from '../store/useAppStore';
 import { computeWeeklyIndicators } from '../utils/weeklyData';
@@ -15,7 +16,10 @@ import {
   TrendingDown, 
   Layers, 
   Sparkles,
-  AlertCircle 
+  AlertCircle,
+  ZoomIn,
+  ZoomOut,
+  Maximize2
 } from 'lucide-react';
 
 function sanitizeSeriesData(data) {
@@ -58,6 +62,8 @@ export function ChartPanel() {
   const [activeRange, setActiveRange] = useState('1Y');
   const [timeframe, setTimeframe] = useState('D'); // 'D' = Daily, 'W' = Weekly
   const [legendData, setLegendData] = useState(null);
+  const prevStockRef = useRef(null);
+  const prevTimeframeRef = useRef(null);
 
   const stockMeta = stocks.find(s => s.symbol === selectedStock) || {};
   const isFav = favorites.includes(selectedStock);
@@ -83,6 +89,7 @@ export function ChartPanel() {
         ema50Series: sanitizeSeriesData(weeklyData?.ema50Series || []),
         ema100Series: sanitizeSeriesData(weeklyData?.ema100Series || []),
         ema200Series: sanitizeSeriesData(weeklyData?.ema200Series || []),
+        divergenceSeries: sanitizeSeriesData(weeklyData?.divergenceSeries || []),
       };
     }
     return {
@@ -90,6 +97,7 @@ export function ChartPanel() {
       ema50Series: sanitizeSeriesData(selectedStockIndicators?.ema50Series || []),
       ema100Series: sanitizeSeriesData(selectedStockIndicators?.ema100Series || []),
       ema200Series: sanitizeSeriesData(selectedStockIndicators?.ema200Series || []),
+      divergenceSeries: sanitizeSeriesData(selectedStockIndicators?.divergenceSeries || []),
     };
   }, [timeframe, weeklyData, selectedStockIndicators]);
 
@@ -146,7 +154,7 @@ export function ChartPanel() {
 
     const container = chartContainerRef.current;
     const width = container.clientWidth || 800;
-    const height = 480;
+    const height = container.clientHeight || 680;
 
     const isDark = theme === 'dark';
     const chartBg = isDark ? '#0d131f' : '#ffffff';
@@ -180,16 +188,41 @@ export function ChartPanel() {
           style: 3,
         },
       },
+      handleScale: {
+        axisPressedMouseMove: {
+          time: true,
+          price: true,
+        },
+        axisDoubleClickReset: {
+          time: true,
+          price: true,
+        },
+        mouseWheel: true,
+        pinch: true,
+      },
+      handleScroll: {
+        mouseWheel: true,
+        pressedMouseMove: true,
+        horzTouchDrag: true,
+        vertTouchDrag: true,
+      },
       timeScale: {
         borderColor: borderColor,
         timeVisible: true,
         secondsVisible: false,
+        rightOffset: 12,
+        barSpacing: 9,
+        minBarSpacing: 0.5,
+        fixLeftEdge: false,
+        fixRightEdge: false,
+        lockVisibleTimeRangeOnResize: false,
       },
       rightPriceScale: {
         borderColor: borderColor,
+        autoScale: true,
         scaleMargins: {
-          top: 0.1,
-          bottom: 0.22,
+          top: 0.06,
+          bottom: 0.38,
         },
       },
     });
@@ -205,14 +238,15 @@ export function ChartPanel() {
     });
     seriesRefs.current.candle = candleSeries;
 
+    // Volume Series (Stacked in middle sub-pane)
     const volumeSeries = chart.addSeries(HistogramSeries, {
       priceFormat: { type: 'volume' },
       priceScaleId: '',
     });
     volumeSeries.priceScale().applyOptions({
       scaleMargins: {
-        top: 0.8,
-        bottom: 0,
+        top: 0.65,
+        bottom: 0.20,
       },
     });
     seriesRefs.current.volume = volumeSeries;
@@ -249,6 +283,69 @@ export function ChartPanel() {
     });
     seriesRefs.current.ema200 = ema200Series;
 
+    // Divergence Series (Stacked below volume at bottom of chart)
+    const divergenceSeries = chart.addSeries(LineSeries, {
+      color: '#a855f7',
+      lineWidth: 2,
+      title: 'Divergence',
+      priceScaleId: 'divergence',
+      priceLineVisible: false,
+      lastValueVisible: true,
+      priceFormat: {
+        type: 'custom',
+        formatter: (price) => `${price > 0 ? '+' : ''}${Math.round(price)}`,
+      },
+      autoscaleInfoProvider: () => ({
+        priceRange: {
+          minValue: -110,
+          maxValue: 110,
+        },
+      }),
+    });
+    divergenceSeries.priceScale().applyOptions({
+      scaleMargins: {
+        top: 0.83,
+        bottom: 0.02,
+      },
+    });
+    seriesRefs.current.divergence = divergenceSeries;
+
+    // 3 Horizontal Reference Lines: +100 (Bullish), 0 (Neutral), -100 (Bearish)
+    const line100 = divergenceSeries.createPriceLine({
+      price: 100,
+      color: '#10b981',
+      lineWidth: 1,
+      lineStyle: LineStyle.Dashed,
+      axisLabelVisible: true,
+      title: '+100 Bullish',
+      axisLabelColor: '#10b981',
+      axisLabelTextColor: '#ffffff',
+    });
+
+    const line0 = divergenceSeries.createPriceLine({
+      price: 0,
+      color: 'rgba(148, 163, 184, 0.55)',
+      lineWidth: 1,
+      lineStyle: LineStyle.Dotted,
+      axisLabelVisible: true,
+      title: '0 Neutral',
+      axisLabelColor: '#64748b',
+      axisLabelTextColor: '#ffffff',
+    });
+
+    const lineMinus100 = divergenceSeries.createPriceLine({
+      price: -100,
+      color: '#f43f5e',
+      lineWidth: 1,
+      lineStyle: LineStyle.Dashed,
+      axisLabelVisible: true,
+      title: '-100 Bearish',
+      axisLabelColor: '#f43f5e',
+      axisLabelTextColor: '#ffffff',
+    });
+
+    seriesRefs.current.divergenceLines = [line100, line0, lineMinus100];
+
     chart.subscribeCrosshairMove((param) => {
       if (!param || !param.time || !param.seriesData) {
         setLegendData(null);
@@ -261,6 +358,7 @@ export function ChartPanel() {
       const e50 = param.seriesData.get(ema50Series);
       const e100 = param.seriesData.get(ema100Series);
       const e200 = param.seriesData.get(ema200Series);
+      const divVal = param.seriesData.get(divergenceSeries);
 
       if (candleVal) {
         setLegendData({
@@ -274,6 +372,7 @@ export function ChartPanel() {
           ema50: e50 ? e50.value : null,
           ema100: e100 ? e100.value : null,
           ema200: e200 ? e200.value : null,
+          divergence: divVal !== undefined && divVal !== null ? Math.round(divVal.value) : null,
         });
       }
     });
@@ -282,6 +381,7 @@ export function ChartPanel() {
       if (chartContainerRef.current && chartInstanceRef.current) {
         chartInstanceRef.current.applyOptions({
           width: chartContainerRef.current.clientWidth,
+          height: chartContainerRef.current.clientHeight || 680,
         });
       }
     };
@@ -326,29 +426,16 @@ export function ChartPanel() {
       return;
     }
 
-    const { candle, volume, ema20, ema50, ema100, ema200 } = seriesRefs.current;
+    const { candle, volume, ema20, ema50, ema100, ema200, divergence } = seriesRefs.current;
 
-    // Filter candles based on active range and selected timeframe
-    let filteredCandles = [...activeCandles];
-    if (timeframe === 'W') {
-      if (activeRange === '1M') filteredCandles = activeCandles.slice(-4);
-      else if (activeRange === '3M') filteredCandles = activeCandles.slice(-13);
-      else if (activeRange === '6M') filteredCandles = activeCandles.slice(-26);
-      else if (activeRange === '1Y') filteredCandles = activeCandles.slice(-52);
-    } else {
-      if (activeRange === '1M') filteredCandles = activeCandles.slice(-22);
-      else if (activeRange === '3M') filteredCandles = activeCandles.slice(-66);
-      else if (activeRange === '6M') filteredCandles = activeCandles.slice(-132);
-      else if (activeRange === '1Y') filteredCandles = activeCandles.slice(-252);
-    }
-
+    // Set full historical candles so user can freely scroll left into the past and zoom in/out
     if (candle) {
-      candle.setData(filteredCandles);
+      candle.setData(activeCandles);
     }
 
     if (volume) {
       if (chartToggles.volume) {
-        const volData = filteredCandles.map(c => ({
+        const volData = activeCandles.map(c => ({
           time: c.time,
           value: c.volume || 0,
           color: c.close >= c.open ? 'rgba(0, 230, 118, 0.35)' : 'rgba(255, 51, 102, 0.35)',
@@ -359,8 +446,8 @@ export function ChartPanel() {
       }
     }
 
-    // Filter indicator series based on filtered timeframe dates
-    const validDates = new Set(filteredCandles.map(c => c.time));
+    // Filter indicator series based on active candles
+    const validDates = new Set(activeCandles.map(c => c.time));
 
     if (ema20 && activeIndicators?.ema20Series) {
       ema20.setData(chartToggles.ema20 
@@ -390,8 +477,165 @@ export function ChartPanel() {
       );
     }
 
-    chartInstanceRef.current.timeScale().fitContent();
-  }, [activeCandles, activeIndicators, chartToggles, activeRange, timeframe]);
+    if (divergence && activeIndicators?.divergenceSeries) {
+      divergence.setData(chartToggles.divergence 
+        ? activeIndicators.divergenceSeries.filter(d => validDates.has(d.time)) 
+        : []
+      );
+    }
+
+    // Dynamic vertical stacking layout: Candlesticks (top), Volume (middle), Divergence (bottom)
+    let candleBottom;
+    let volTop;
+    let volBottom;
+    let divTop;
+    let divBottom;
+
+    if (chartToggles.volume && chartToggles.divergence) {
+      candleBottom = 0.38;
+      volTop = 0.65;
+      volBottom = 0.20;
+      divTop = 0.83;
+      divBottom = 0.02;
+    } else if (chartToggles.volume && !chartToggles.divergence) {
+      candleBottom = 0.22;
+      volTop = 0.78;
+      volBottom = 0;
+    } else if (!chartToggles.volume && chartToggles.divergence) {
+      candleBottom = 0.22;
+      divTop = 0.78;
+      divBottom = 0.02;
+    } else {
+      candleBottom = 0.08;
+    }
+
+    chartInstanceRef.current.priceScale('right').applyOptions({
+      scaleMargins: {
+        top: 0.06,
+        bottom: candleBottom,
+      },
+    });
+
+    if (volume && chartToggles.volume) {
+      volume.priceScale().applyOptions({
+        scaleMargins: {
+          top: volTop,
+          bottom: volBottom,
+        },
+      });
+    }
+
+    if (divergence && chartToggles.divergence) {
+      divergence.priceScale().applyOptions({
+        scaleMargins: {
+          top: divTop,
+          bottom: divBottom,
+        },
+      });
+    }
+
+    // Toggle horizontal reference lines (+100, 0, -100) visibility
+    if (seriesRefs.current.divergenceLines) {
+      seriesRefs.current.divergenceLines.forEach(line => {
+        line.applyOptions({
+          lineVisible: !!chartToggles.divergence,
+          axisLabelVisible: !!chartToggles.divergence,
+        });
+      });
+    }
+
+    // Only adjust visible range when opening a new stock or changing timeframe frequency
+    const isNewStockOrTf = prevStockRef.current !== selectedStock || prevTimeframeRef.current !== timeframe;
+    if (isNewStockOrTf) {
+      prevStockRef.current = selectedStock;
+      prevTimeframeRef.current = timeframe;
+      const totalBars = activeCandles.length;
+      let targetBars;
+      if (timeframe === 'W') {
+        if (activeRange === '1M') targetBars = 4;
+        else if (activeRange === '3M') targetBars = 13;
+        else if (activeRange === '6M') targetBars = 26;
+        else if (activeRange === '1Y') targetBars = 52;
+        else targetBars = totalBars;
+      } else {
+        if (activeRange === '1M') targetBars = 22;
+        else if (activeRange === '3M') targetBars = 66;
+        else if (activeRange === '6M') targetBars = 132;
+        else if (activeRange === '1Y') targetBars = 252;
+        else targetBars = totalBars;
+      }
+
+      if (activeRange === 'ALL') {
+        chartInstanceRef.current.timeScale().fitContent();
+      } else {
+        chartInstanceRef.current.timeScale().setVisibleLogicalRange({
+          from: Math.max(0, totalBars - targetBars),
+          to: totalBars + 8,
+        });
+      }
+    }
+  }, [activeCandles, activeIndicators, chartToggles, activeRange, timeframe, selectedStock]);
+
+  const handleRangeChange = (range) => {
+    setActiveRange(range);
+    if (!chartInstanceRef.current || !activeCandles || activeCandles.length === 0) return;
+    const totalBars = activeCandles.length;
+    let targetBars = totalBars;
+
+    if (timeframe === 'W') {
+      if (range === '1M') targetBars = 4;
+      else if (range === '3M') targetBars = 13;
+      else if (range === '6M') targetBars = 26;
+      else if (range === '1Y') targetBars = 52;
+    } else {
+      if (range === '1M') targetBars = 22;
+      else if (range === '3M') targetBars = 66;
+      else if (range === '6M') targetBars = 132;
+      else if (range === '1Y') targetBars = 252;
+    }
+
+    if (range === 'ALL') {
+      chartInstanceRef.current.timeScale().fitContent();
+    } else {
+      chartInstanceRef.current.timeScale().setVisibleLogicalRange({
+        from: Math.max(0, totalBars - targetBars),
+        to: totalBars + 8,
+      });
+    }
+  };
+
+  const handleZoomIn = () => {
+    if (!chartInstanceRef.current) return;
+    const ts = chartInstanceRef.current.timeScale();
+    const range = ts.getVisibleLogicalRange();
+    if (!range) return;
+    const span = range.to - range.from;
+    const delta = Math.max(2, Math.round(span * 0.15));
+    ts.setVisibleLogicalRange({
+      from: range.from + delta,
+      to: range.to - delta,
+    });
+  };
+
+  const handleZoomOut = () => {
+    if (!chartInstanceRef.current) return;
+    const ts = chartInstanceRef.current.timeScale();
+    const range = ts.getVisibleLogicalRange();
+    if (!range) return;
+    const span = range.to - range.from;
+    const delta = Math.max(2, Math.round(span * 0.15));
+    ts.setVisibleLogicalRange({
+      from: range.from - delta,
+      to: range.to + delta,
+    });
+  };
+
+  const handleResetScale = () => {
+    if (!chartInstanceRef.current) return;
+    chartInstanceRef.current.timeScale().resetTimeScale();
+    chartInstanceRef.current.priceScale('right').applyOptions({ autoScale: true });
+    handleRangeChange(activeRange);
+  };
 
   if (!selectedStock) {
     return (
@@ -464,17 +708,42 @@ export function ChartPanel() {
           )}
         </div>
 
-        {/* Timeframe Range Buttons (Only 1M, 3M, 6M, 1Y, ALL) */}
+        {/* Timeframe Range Buttons (1M, 3M, 6M, 1Y, ALL) + TradingView Zoom Controls */}
         <div className="chart-timeframe-selector">
           {['1M', '3M', '6M', '1Y', 'ALL'].map((tf) => (
             <button
               key={tf}
               className={`btn-timeframe ${activeRange === tf ? 'active' : ''}`}
-              onClick={() => setActiveRange(tf)}
+              onClick={() => handleRangeChange(tf)}
             >
               {tf}
             </button>
           ))}
+
+          <div className="chart-zoom-controls">
+            <button 
+              className="btn-zoom-action" 
+              onClick={handleZoomIn} 
+              title="Zoom In Horizontally (or mouse wheel)"
+            >
+              <ZoomIn size={14} />
+            </button>
+            <button 
+              className="btn-zoom-action" 
+              onClick={handleZoomOut} 
+              title="Zoom Out Horizontally (or mouse wheel)"
+            >
+              <ZoomOut size={14} />
+            </button>
+            <button 
+              className="btn-zoom-action" 
+              onClick={handleResetScale} 
+              title="Reset View & Scales (or double-click axis)"
+            >
+              <Maximize2 size={14} />
+            </button>
+          </div>
+
           <button 
             className="btn-refresh-chart"
             onClick={() => selectStock(selectedStock, true)}
@@ -532,6 +801,20 @@ export function ChartPanel() {
           >
             <span className="indicator-dot dot-vol" />
             <span>Volume</span>
+          </button>
+
+          <button 
+            className={`btn-indicator-toggle toggle-div ${chartToggles.divergence ? 'active' : ''}`}
+            onClick={() => setChartToggle('divergence')}
+            title="Continuous Bar-by-Bar Divergence Score Timeline (-100 to +100)"
+          >
+            <span className="indicator-dot dot-divergence" />
+            <span>Divergence</span>
+            {ind.compositeScore !== undefined && (
+              <span className="indicator-val" style={{ color: ind.compositeScore >= 0 ? '#10b981' : '#f43f5e' }}>
+                {ind.compositeScore > 0 ? `+${ind.compositeScore}` : ind.compositeScore}
+              </span>
+            )}
           </button>
 
           {/* D / W Timeframe Selector Pill */}
@@ -605,6 +888,13 @@ export function ChartPanel() {
             )}
             {chartToggles.ema200 && legendData.ema200 && (
               <span className="text-magenta">EMA200: <strong>₹{legendData.ema200}</strong></span>
+            )}
+            {chartToggles.divergence && legendData.divergence !== null && legendData.divergence !== undefined && (
+              <span style={{ color: '#c084fc' }}>
+                Div: <strong style={{ color: legendData.divergence >= 0 ? '#34d399' : '#fb7185' }}>
+                  {legendData.divergence > 0 ? `+${legendData.divergence}` : legendData.divergence}
+                </strong>
+              </span>
             )}
           </div>
         ) : (

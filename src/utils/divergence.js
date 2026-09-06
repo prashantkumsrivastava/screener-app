@@ -203,7 +203,30 @@ export function computeIndicators(candles) {
     ema50Series,
     ema100Series,
     ema200Series,
+    divergenceSeries: computeDivergenceSeries(candles),
   };
+}
+
+/**
+ * Extract or compute daily continuous divergence series for charts
+ * Returns array of { time, value } points where value is compositeScore (-100 to +100)
+ */
+export function computeDivergenceSeries(candles) {
+  if (!candles || candles.length === 0) return [];
+
+  const hasPrecomputed = candles.some(c => c && typeof c.compositeScore === 'number' && c.compositeScore !== 0);
+  if (hasPrecomputed) {
+    return candles.map(c => ({
+      time: c.time,
+      value: typeof c.compositeScore === 'number' ? c.compositeScore : 0
+    }));
+  }
+
+  const enriched = computeTimelineIndicators(candles);
+  return enriched.map(c => ({
+    time: c.time,
+    value: typeof c.compositeScore === 'number' ? c.compositeScore : 0
+  }));
 }
 
 /**

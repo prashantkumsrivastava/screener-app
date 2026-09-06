@@ -1,4 +1,5 @@
 import { calculateEMA } from './ema';
+import { computeTimelineIndicators } from './divergence';
 
 /**
  * Aggregates daily OHLCV candles into weekly candles on-the-fly.
@@ -83,6 +84,10 @@ export function computeWeeklyIndicators(dailyCandles) {
   const ema100Series = calculateEMA(weeklyCandles, 100);
   const ema200Series = calculateEMA(weeklyCandles, 200);
 
+  const divergenceSeries = weeklyCandles.length >= 20 
+    ? computeTimelineIndicators(weeklyCandles).map(c => ({ time: c.time, value: c.compositeScore ?? 0 }))
+    : [];
+
   const warnings = [];
   if (totalWeeks < 20) warnings.push('EMA 20 requires 20 weekly bars.');
   if (totalWeeks < 50) warnings.push('EMA 50 requires 50 weekly bars (~1Y data).');
@@ -95,6 +100,7 @@ export function computeWeeklyIndicators(dailyCandles) {
     ema50Series,
     ema100Series,
     ema200Series,
+    divergenceSeries,
     totalWeeks,
     warnings
   };
